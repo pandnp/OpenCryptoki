@@ -27,6 +27,7 @@
 #define DES2_NAME		"2DES"
 #define DES3_NAME               "3DES"
 #define ECC_NAME                "ECC"
+#define HMAC_NAME		"HMAC"
 #define RSA_NAME                "RSA"
 #define BAD_NAME                "Unknown"
 
@@ -135,6 +136,7 @@ struct key_count
 	int des2;
 	int des3;
 	int ecc;
+	int hmac;
 	int rsa;
 };
 

@@ -41,6 +41,7 @@ void *lib_csulcca;
 
 struct algo aes = {"RTCMK   AES     ", "AES", 2};
 struct algo des = {"RTCMK   ", "DES", 1};
+struct algo hmac = {"RTCMK   HMAC    ", "HMAC", 2};
 struct algo ecc = {"RTCMK   ECC     ", "ECC", 2};
 struct algo rsa = {"RTCMK   ", "RSA", 1};
 
@@ -549,6 +550,7 @@ int add_key(CK_OBJECT_HANDLE handle, CK_ATTRIBUTE  *attrs, struct key **keys)
 		case CKK_DES2:
 		case CKK_DES3:
 		case CKK_EC:
+		case CKK_GENERIC_SECRET:
 		case CKK_RSA:
 			break;
 
@@ -595,6 +597,9 @@ int add_key(CK_OBJECT_HANDLE handle, CK_ATTRIBUTE  *attrs, struct key **keys)
 			break;
 		case CKK_EC:
 			type_name = ECC_NAME;
+			break;
+		case CKK_GENERIC_SECRET:
+			type_name = HMAC_NAME;
 			break;
 		case CKK_RSA:
 			type_name = RSA_NAME;
@@ -866,6 +871,13 @@ int cca_migrate(struct key *keys, struct key_count *count,
 			else
 				count->ecc++;
 			break;
+		case CKK_GENERIC_SECRET:
+			rc = cca_migrate_symmetric(key, &migrated_data, hmac);
+			if (rc)
+				count_failed->hmac++;
+			else
+				count->hmac++;
+			break;
 		case CKK_RSA:
 			rc = cca_migrate_asymmetric(key, &migrated_data, rsa);
 			if (rc)
@@ -916,7 +928,7 @@ done:
 void key_migration_results(struct key_count migrated, struct key_count failed)
 {
 	if (migrated.aes || migrated.des || migrated.des2 || migrated.des3 ||
-		migrated.ecc || migrated.rsa)
+		migrated.ecc || migrated.hmac || migrated.rsa)
 		printf("Successfully migrated: ");
 	if (migrated.aes)
 		printf("AES: %d. ", migrated.aes);
@@ -928,11 +940,13 @@ void key_migration_results(struct key_count migrated, struct key_count failed)
 		printf("DES3: %d. ", migrated.des3);
 	if (migrated.ecc)
 		printf("ECC: %d. ", migrated.ecc);
+	if (migrated.hmac)
+		printf("HMAC: %d. ", migrated.hmac);
 	if (migrated.rsa)
 		printf("RSA: %d. ", migrated.rsa);
 
 	if (failed.aes || failed.des || failed.des2 || failed.des3 ||
-		failed.ecc || failed.rsa)
+		failed.ecc || failed.hmac || failed.rsa)
 		printf("\nFailed to migrate: ");
 	if (failed.aes)
 		printf("AES: %d. ", failed.aes);
@@ -944,6 +958,8 @@ void key_migration_results(struct key_count migrated, struct key_count failed)
 		printf("DES3: %d. ", failed.des3);
 	if (failed.ecc)
 		printf("ECC: %d. ", failed.ecc);
+	if (failed.hmac)
+		printf("HMAC: %d. ", failed.hmac);
 	if (failed.rsa)
 		printf("RSA: %d. ", failed.rsa);
 
@@ -958,8 +974,8 @@ int migrate_wrapped_keys(CK_SLOT_ID slot_id, char *userpin, int masterkey)
 	CK_ULONG slot_count;
 	CK_SESSION_HANDLE sess;
 	CK_RV rv;
-	struct key_count count = {0,0,0,0,0,0};
-	struct key_count count_failed = {0,0,0,0,0,0};
+	struct key_count count = {0,0,0,0,0,0,0};
+	struct key_count count_failed = {0,0,0,0,0,0,0};
 	int exit_code = 0, rc;
 
 	funcs = p11_init();
@@ -1007,6 +1023,15 @@ int migrate_wrapped_keys(CK_SLOT_ID slot_id, char *userpin, int masterkey)
 			if (rc) {
 				goto done;
 			}
+			if (v_flag)
+				printf("Search for HMAC keys\n");
+			key_type = CKK_GENERIC_SECRET;
+			rc = migrate_keytype(funcs, sess, &key_type, &count,
+				&count_failed);
+			if (rc) {
+				goto done;
+			}
+			break;
 	case MK_APKA:
 			if (v_flag)
 				printf("Search for ECC keys\n");
